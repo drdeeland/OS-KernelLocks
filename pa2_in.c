@@ -1,5 +1,5 @@
 /**
-  File: lkm_pa2-out.c
+  File: pa2_in.c
   Class: COP4600-SP23
 */
 
@@ -9,20 +9,20 @@
 #include <linux/fs.h>		 	// File-system support.
 #include <linux/uaccess.h>	  	// User access copy function support.
 #include <linux/mutex.h>        // Linux mutex.
-#define DEVICE_NAME "lkm_pa2-out" 		// Device name.
-#define CLASS_NAME "char2"		///< The device class -- this is a character device driver
+#define DEVICE_NAME "pa2_in" 		// Device name.
+#define CLASS_NAME "char"		///< The device class -- this is a character device driver
 
 MODULE_LICENSE("GPL");						 	///< The license type -- this affects available functionality
 MODULE_AUTHOR("Dillon Flaschner, Guan-Yu Lin, and Anh-Dung Van");	///< The author -- visible when you use modinfo
-MODULE_DESCRIPTION("lkm_pa2-out Kernel Module"); 				///< The description -- see modinfo
+MODULE_DESCRIPTION("lkm_pa2-in Kernel Module"); 				///< The description -- see modinfo
 MODULE_VERSION("0.1");						 	///< A version number to inform users
 /**
  * Important variables that store data and keep track of relevant information.
  */
 static int major_number;
 
-static struct class *lkmpa2outClass = NULL;		///< The device-driver class struct pointer
-static struct device *lkmpa2outDevice = NULL; 		///< The device-driver device struct pointer
+static struct class *lkmpa2inClass = NULL;		///< The device-driver class struct pointer
+static struct device *lkmpa2inDevice = NULL; 		///< The device-driver device struct pointer
 
 // Allocate 1KB memory to store the device message.
 #define BUFFER_LENGTH 1024
@@ -34,7 +34,7 @@ static int size_of_message = 0;				//last_index of message
  */
 static int open(struct inode *, struct file *);
 static int close(struct inode *, struct file *);
-static ssize_t read(struct file *, char *, size_t, loff_t *);
+static ssize_t write(struct file *, const char *, size_t, loff_t *);
 
 /**
  * File operations structure and the functions it points to.
@@ -44,7 +44,7 @@ static struct file_operations fops =
 		.owner = THIS_MODULE,
 		.open = open,
 		.release = close,
-		.read = read,
+		.write = write,
 };
 
 /**
@@ -52,38 +52,38 @@ static struct file_operations fops =
  */
 int init_module(void)
 {
-	printk(KERN_INFO "lkm_pa2-out: installing module.\n");
+	printk(KERN_INFO "lkm_pa2-in: installing module.\n");
 
 	// Allocate a major number for the device.
 	major_number = register_chrdev(0, DEVICE_NAME, &fops);
 	if (major_number < 0)
 	{
-		printk(KERN_ALERT "lkm_pa2-out could not register number.\n");
+		printk(KERN_ALERT "lkm_pa2-in could not register number.\n");
 		return major_number;
 	}
-	printk(KERN_INFO "lkm_pa2-out: registered correctly with major number %d\n", major_number);
+	printk(KERN_INFO "lkm_pa2-in: registered correctly with major number %d\n", major_number);
 
 	// Register the device class
-	lkmpa2outClass = class_create(THIS_MODULE, CLASS_NAME);
+	lkmpa2inClass = class_create(THIS_MODULE, CLASS_NAME);
 	// Check for error and clean up if there is
-	if (IS_ERR(lkmpa2outClass))
+	if (IS_ERR(lkmpa2inClass))
 	{
 		unregister_chrdev(major_number, DEVICE_NAME);
 		printk(KERN_ALERT "Failed to register device class\n");
-		return PTR_ERR(lkmpa2outClass); 					// Correct way to return an error on a pointer
+		return PTR_ERR(lkmpa2inClass); 					// Correct way to return an error on a pointer
 	}
-	printk(KERN_INFO "lkm_pa2-out: device class registered correctly\n");
+	printk(KERN_INFO "lkm_pa2-in: device class registered correctly\n");
 
 	// Register the device driver
-	lkmpa2outDevice = device_create(lkmpa2outClass, NULL, MKDEV(major_number, 0), NULL, DEVICE_NAME);
-	if (IS_ERR(lkmpa2outDevice))
+	lkmpa2inDevice = device_create(lkmpa2inClass, NULL, MKDEV(major_number, 0), NULL, DEVICE_NAME);
+	if (IS_ERR(lkmpa2inDevice))
 	{								 	// Clean up if there is an error
-		class_destroy(lkmpa2outClass); 					// Repeated code but the alternative is goto statements
+		class_destroy(lkmpa2inClass); 					// Repeated code but the alternative is goto statements
 		unregister_chrdev(major_number, DEVICE_NAME);
 		printk(KERN_ALERT "Failed to create the device\n");
-		return PTR_ERR(lkmpa2outDevice);
+		return PTR_ERR(lkmpa2inDevice);
 	}
-	printk(KERN_INFO "lkm_pa2-out: device class created correctly\n");		// Made it! device was initialized
+	printk(KERN_INFO "lkm_pa2-in: device class created correctly\n");		// Made it! device was initialized
 
 	return 0;
 }
@@ -93,12 +93,12 @@ int init_module(void)
  */
 void cleanup_module(void)
 {
-	printk(KERN_INFO "lkm_pa2-out: removing module.\n");
-	device_destroy(lkmpa2outClass, MKDEV(major_number, 0)); 			// remove the device
-	class_unregister(lkmpa2outClass);						// unregister the device class
-	class_destroy(lkmpa2outClass);						// remove the device class
+	printk(KERN_INFO "lkm_pa2-in: removing module.\n");
+	device_destroy(lkmpa2inClass, MKDEV(major_number, 0)); 			// remove the device
+	class_unregister(lkmpa2inClass);						// unregister the device class
+	class_destroy(lkmpa2inClass);						// remove the device class
 	unregister_chrdev(major_number, DEVICE_NAME);		  		// unregister the major number
-	printk(KERN_INFO "lkm_pa2-out: Goodbye from the LKM!\n");
+	printk(KERN_INFO "lkm_pa2-in: Goodbye from the LKM!\n");
 	unregister_chrdev(major_number, DEVICE_NAME);
 	return;
 }
@@ -108,7 +108,7 @@ void cleanup_module(void)
  */
 static int open(struct inode *inodep, struct file *filep)
 {
-	printk(KERN_INFO "lkm_pa2-out: device opened.\n");
+	printk(KERN_INFO "lkm_pa2-in: device opened.\n");
 	return 0;
 }
 
@@ -117,33 +117,35 @@ static int open(struct inode *inodep, struct file *filep)
  */
 static int close(struct inode *inodep, struct file *filep)
 {
-	printk(KERN_INFO "lkm_pa2-out: device closed.\n");
+	printk(KERN_INFO "lkm_pa2-in: device closed.\n");
 	return 0;
 }
 
 /*
- * Reads from device, displays in userspace, and deletes the read data
+ * Writes to the device
  */
-static ssize_t read(struct file *filep, char *buffer, size_t len, loff_t *offset)
+static ssize_t write(struct file *filep, const char *buffer, size_t len, loff_t *offset)
 {
-	int error = 0, i;
+	int i, j = 0, added = 0;
 
-	printk(KERN_INFO "lkm_pa2-out: Read stub");
-	
-	error = copy_to_user(buffer, message, size_of_message);
-	
-	if (error == 0) {
-		printk(KERN_INFO "lkm_pa2-out: Sent %d characters to the user\n", size_of_message);
-		for(i = 0; i < size_of_message; i++) {
-			message[i] = '\0';
-		}
-		size_of_message = 0;
+	printk(KERN_INFO "lkm_pa2-in: Write stub");
+
+	if (len == 0)
 		return 0;
+
+	if (len + size_of_message > BUFFER_LENGTH) {
+		for(i = size_of_message; i < BUFFER_LENGTH; i++) {
+			message[i] = buffer[j++];
+		}
+		added = BUFFER_LENGTH - size_of_message;
+		size_of_message = BUFFER_LENGTH;
+		printk(KERN_INFO "lkm_pa2-in: Received %d characters from the user\n", added);
 	}
 	else {
-		printk(KERN_INFO "lkm_pa2-out: Failed to send %d characters to the user\n", size_of_message);
-		return -EFAULT;
+		sprintf(&(message[size_of_message]), "%s", buffer);
+		size_of_message += len;
+		printk(KERN_INFO "lkm_pa2-in: Received %zu characters from the user\n", len);
 	}
 	
-	return 0;
+	return len;
 }

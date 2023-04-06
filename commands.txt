@@ -1,4 +1,4 @@
-sudo insmod lkm_pa2-in.ko
-sudo insmod lkm_pa2-out.ko
-sudo rmmod lkm_pa2-in
-sudo rmmod lkm_pa2-out
+sudo insmod pa2_in.ko
+sudo insmod pa2_out.ko
+sudo rmmod pa2_in
+sudo rmmod pa2_out
