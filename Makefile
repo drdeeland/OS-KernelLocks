@@ -1,5 +1,5 @@
-obj-m += lkm_pa2-in.o
-obj-m += lkm_pa2-out.o
+obj-m += pa2_in.o
+obj-m += pa2_out.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
