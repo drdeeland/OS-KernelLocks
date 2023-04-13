@@ -1,4 +1,4 @@
 sudo insmod pa2_in.ko
 sudo insmod pa2_out.ko
-sudo rmmod pa2_in
 sudo rmmod pa2_out
+sudo rmmod pa2_in

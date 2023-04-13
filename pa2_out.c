@@ -14,7 +14,7 @@
 
 MODULE_LICENSE("GPL");						 	///< The license type -- this affects available functionality
 MODULE_AUTHOR("Dillon Flaschner, Guan-Yu Lin, and Anh-Dung Van");	///< The author -- visible when you use modinfo
-MODULE_DESCRIPTION("lkm_pa2-out Kernel Module"); 				///< The description -- see modinfo
+MODULE_DESCRIPTION("pa2-out Kernel Module"); 				///< The description -- see modinfo
 MODULE_VERSION("0.1");						 	///< A version number to inform users
 /**
  * Important variables that store data and keep track of relevant information.
@@ -26,8 +26,11 @@ static struct device *lkmpa2outDevice = NULL; 		///< The device-driver device st
 
 // Allocate 1KB memory to store the device message.
 #define BUFFER_LENGTH 1024
-static char message[BUFFER_LENGTH] = {0};
-static int size_of_message = 0;				//last_index of message
+extern char pa2_message[BUFFER_LENGTH];
+extern int pa2_size_of_message;				//last_index of message
+
+// get the mutex lock
+extern struct mutex pa2_lock;
 
 /**
  * Prototype functions for file operations.
@@ -52,16 +55,16 @@ static struct file_operations fops =
  */
 int init_module(void)
 {
-	printk(KERN_INFO "lkm_pa2-out: installing module.\n");
+	printk(KERN_INFO "pa2-out: installing module.\n");
 
 	// Allocate a major number for the device.
 	major_number = register_chrdev(0, DEVICE_NAME, &fops);
 	if (major_number < 0)
 	{
-		printk(KERN_ALERT "lkm_pa2-out could not register number.\n");
+		printk(KERN_ALERT "pa2-out could not register number.\n");
 		return major_number;
 	}
-	printk(KERN_INFO "lkm_pa2-out: registered correctly with major number %d\n", major_number);
+	printk(KERN_INFO "pa2-out: registered correctly with major number %d\n", major_number);
 
 	// Register the device class
 	lkmpa2outClass = class_create(THIS_MODULE, CLASS_NAME);
@@ -72,7 +75,7 @@ int init_module(void)
 		printk(KERN_ALERT "Failed to register device class\n");
 		return PTR_ERR(lkmpa2outClass); 					// Correct way to return an error on a pointer
 	}
-	printk(KERN_INFO "lkm_pa2-out: device class registered correctly\n");
+	printk(KERN_INFO "pa2-out: device class registered correctly\n");
 
 	// Register the device driver
 	lkmpa2outDevice = device_create(lkmpa2outClass, NULL, MKDEV(major_number, 0), NULL, DEVICE_NAME);
@@ -83,7 +86,7 @@ int init_module(void)
 		printk(KERN_ALERT "Failed to create the device\n");
 		return PTR_ERR(lkmpa2outDevice);
 	}
-	printk(KERN_INFO "lkm_pa2-out: device class created correctly\n");		// Made it! device was initialized
+	printk(KERN_INFO "pa2-out: device class created correctly\n");		// Made it! device was initialized
 
 	return 0;
 }
@@ -93,12 +96,12 @@ int init_module(void)
  */
 void cleanup_module(void)
 {
-	printk(KERN_INFO "lkm_pa2-out: removing module.\n");
+	printk(KERN_INFO "pa2-out: removing module.\n");
 	device_destroy(lkmpa2outClass, MKDEV(major_number, 0)); 			// remove the device
 	class_unregister(lkmpa2outClass);						// unregister the device class
 	class_destroy(lkmpa2outClass);						// remove the device class
 	unregister_chrdev(major_number, DEVICE_NAME);		  		// unregister the major number
-	printk(KERN_INFO "lkm_pa2-out: Goodbye from the LKM!\n");
+	printk(KERN_INFO "pa2-out: Goodbye from the LKM!\n");
 	unregister_chrdev(major_number, DEVICE_NAME);
 	return;
 }
@@ -108,7 +111,7 @@ void cleanup_module(void)
  */
 static int open(struct inode *inodep, struct file *filep)
 {
-	printk(KERN_INFO "lkm_pa2-out: device opened.\n");
+	printk(KERN_INFO "pa2-out: device opened.\n");
 	return 0;
 }
 
@@ -117,7 +120,7 @@ static int open(struct inode *inodep, struct file *filep)
  */
 static int close(struct inode *inodep, struct file *filep)
 {
-	printk(KERN_INFO "lkm_pa2-out: device closed.\n");
+	printk(KERN_INFO "pa2-out: device closed.\n");
 	return 0;
 }
 
@@ -128,22 +131,46 @@ static ssize_t read(struct file *filep, char *buffer, size_t len, loff_t *offset
 {
 	int error = 0, i;
 
-	printk(KERN_INFO "lkm_pa2-out: Read stub");
+	printk(KERN_INFO "pa2-out: Read stub");
 	
-	error = copy_to_user(buffer, message, size_of_message);
+	// check if the lock is taken
+	if (mutex_is_locked(&pa2_lock)) {
+		printk(KERN_INFO "pa2-out: Waiting on lock");
+	}
+
+	// attempt to take the lock
+	mutex_lock(&pa2_lock);
+	printk(KERN_INFO "pa2-out: Lock Acquired\n");
+	printk(KERN_INFO "pa2-out: Critical Section entered\n");
+
+
+	error = copy_to_user(buffer, pa2_message, pa2_size_of_message);
 	
-	if (error == 0) {
-		printk(KERN_INFO "lkm_pa2-out: Sent %d characters to the user\n", size_of_message);
-		for(i = 0; i < size_of_message; i++) {
-			message[i] = '\0';
+	if (error == 0 && pa2_size_of_message == 0) {
+		printk(KERN_INFO "pa2-out: Buffer empty\n");
+	}
+	else if (error == 0) {
+		printk(KERN_INFO "pa2-out: Sent %d characters to the user\n", pa2_size_of_message);
+
+		for(i = 0; i < pa2_size_of_message; i++) {
+			pa2_message[i] = '\0';
 		}
-		size_of_message = 0;
-		return 0;
+
+		pa2_size_of_message = 0;
 	}
 	else {
-		printk(KERN_INFO "lkm_pa2-out: Failed to send %d characters to the user\n", size_of_message);
+		printk(KERN_INFO "pa2-out: Failed to send %d characters to the user\n", pa2_size_of_message);
+
+		// Release lock
+		mutex_unlock(&pa2_lock);
+		printk(KERN_INFO "pa2-out: Lock Released\n");
+
 		return -EFAULT;
 	}
+
+	// Release lock
+	mutex_unlock(&pa2_lock);
+	printk(KERN_INFO "pa2-out: Lock Released\n");
 	
 	return 0;
 }
