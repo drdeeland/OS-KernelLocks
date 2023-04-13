@@ -26,14 +26,14 @@ static struct device *lkmpa2inDevice = NULL; 		///< The device-driver device str
 
 // Allocate 1KB memory to store the device message, and EXPORT the variables
 #define BUFFER_LENGTH 1024
-static char pa2_message[BUFFER_LENGTH] = {0};
-static int pa2_size_of_message = 0;				//last_index of message
+char pa2_message[BUFFER_LENGTH] = {0};
+int pa2_size_of_message = 0;				//last_index of message
 
 EXPORT_SYMBOL(pa2_message);
 EXPORT_SYMBOL(pa2_size_of_message);
 
 // Make the mutex lock and EXPORT it.
-static struct mutex pa2_lock;
+struct mutex pa2_lock;
 
 EXPORT_SYMBOL(pa2_lock);
 
